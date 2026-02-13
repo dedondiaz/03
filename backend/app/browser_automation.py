@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 from sqlalchemy import text
 
-from app.security.crypto import encrypt, decrypt
+from app.security.crypto import encrypt_str, decrypt_str
 from app.usage import check_quota_or_raise, QuotaExceededError, meter_web_automation_runtime
 from app.observability.health import mark_success, mark_failure
 
@@ -95,7 +95,7 @@ def create_session(db, tenant_id: str, user_id: str, domain: str, storage_state:
       INSERT INTO automation_sessions (tenant_id, domain, storage_state_enc, created_by)
       VALUES (:tenant_id, :domain, :enc, :created_by)
       RETURNING id
-    """), {"tenant_id": tenant_id, "domain": domain.lower().strip(), "enc": encrypt(json.dumps(storage_state)), "created_by": user_id}).fetchone()
+    """), {"tenant_id": tenant_id, "domain": domain.lower().strip(), "enc": encrypt_str(json.dumps(storage_state)), "created_by": user_id}).fetchone()
     return str(row.id)
 
 
@@ -124,7 +124,7 @@ def run_web_automation(args: dict, ctx: dict) -> dict:
         row = db.execute(text("SELECT storage_state_enc FROM automation_sessions WHERE id=:id"), {"id": session_id}).fetchone()
         if not row:
             raise AutomationSessionNotFound("automation_session_not_found")
-        storage_state = json.loads(decrypt(row.storage_state_enc))
+        storage_state = json.loads(decrypt_str(row.storage_state_enc))
 
     try:
         check_quota_or_raise(db, ctx["tenant_id"], "web_automation_runs", 1)
