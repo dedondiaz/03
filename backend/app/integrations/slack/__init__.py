@@ -1,0 +1,1 @@
+from .slack_client import SlackNotConnectedError
