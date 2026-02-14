@@ -2,11 +2,11 @@ import os
 import pytest
 from sqlalchemy import text
 from fastapi.testclient import TestClient
+from redis import Redis
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/saas_ai")
 os.environ.setdefault("LLM_MODE", "fake")
 os.environ.setdefault("APP_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
-os.environ.setdefault("TESTING", "1")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test-secret")
 os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://localhost:8000/integrations/google/callback")
@@ -33,6 +33,10 @@ from app.db import engine, init_db
 @pytest.fixture(autouse=True)
 def setup_db():
     init_db()
+    try:
+        Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0")).flushdb()
+    except Exception:
+        pass
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE tenant_invites, tenant_notion_policies, integration_health, tenant_usage_daily, tenant_plans, browser_automation_artifacts, browser_automation_runs, automation_sessions, tenant_automation_policies, microsoft_oauth_states, microsoft_oauth_credentials, automation_executions, automation_rules, workflow_runs, notion_documents, notion_credentials, notion_oauth_states, jira_oauth_states, jira_oauth_credentials, tenant_jira_policies, slack_oauth_states, slack_oauth_credentials, tenant_slack_policies, google_oauth_states, google_oauth_credentials, tenant_calendar_settings, tenant_policies, tool_invocations, notes, audit_logs, approvals, task_runs, tasks, sessions RESTART IDENTITY CASCADE"))
         conn.execute(text("""

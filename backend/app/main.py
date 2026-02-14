@@ -60,8 +60,6 @@ def startup():
 
 @app.middleware("http")
 async def tenant_rate_limit_and_meter(request: Request, call_next):
-    if os.getenv("TESTING") == "1":
-        return await call_next(request)
     if request.url.path.startswith("/health") or request.url.path.startswith("/auth/login"):
         return await call_next(request)
     auth = request.headers.get("authorization", "")
