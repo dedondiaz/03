@@ -740,9 +740,11 @@ def init_db() -> None:
     """
 
     with engine.begin() as conn:
-        conn.execute(text(ddl))
-        conn.execute(text(rls))
-        conn.execute(text(seed))
+        # Use driver-level execution for large raw SQL blocks containing JSON literals
+        # (e.g. `{"k":120}`), so SQLAlchemy doesn't treat `:120` as a bind parameter.
+        conn.exec_driver_sql(ddl)
+        conn.exec_driver_sql(rls)
+        conn.exec_driver_sql(seed)
 
 
 @contextmanager
