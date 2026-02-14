@@ -247,6 +247,7 @@ def run_scheduler_tick(db, now_dt: datetime | None = None) -> list[dict]:
         status = "queued"
         reason = None
         workflow_run_id = None
+        linked_run_id = None
 
         if _in_quiet_hours(now_utc, rule.timezone or "Asia/Kolkata", rule.quiet_hours_start, rule.quiet_hours_end):
             status = "skipped_quiet_hours"
@@ -270,6 +271,7 @@ def run_scheduler_tick(db, now_dt: datetime | None = None) -> list[dict]:
                         wfsvc = WorkflowService(db, tenant_id, user_id)
                         created = wfsvc.create_run(str(rule.template_id), dict(rule.input_json or {}), triggered_by_rule_id=str(rule.id))
                         workflow_run_id = created["id"]
+                        linked_run_id = created.get("linked_run_id")
                         db.execute(text("UPDATE workflow_runs SET triggered_by_rule_id=:rule_id WHERE id=:id"), {"rule_id": str(rule.id), "id": workflow_run_id})
                         status = "enqueued"
                         reason = None
@@ -304,9 +306,9 @@ def run_scheduler_tick(db, now_dt: datetime | None = None) -> list[dict]:
         }).fetchone()
         db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, :event_type, CAST(:payload AS jsonb))"), {
             "tenant_id": tenant_id,
-            "run_id": workflow_run_id,
+            "run_id": linked_run_id,
             "event_type": "automation_execution",
-            "payload": json.dumps({"rule_id": str(rule.id), "execution_id": str(exec_row.id), "status": status, "reason": reason}),
+            "payload": json.dumps({"rule_id": str(rule.id), "execution_id": str(exec_row.id), "status": status, "reason": reason, "workflow_run_id": workflow_run_id, "linked_run_id": linked_run_id}),
         })
         events.append({"rule_id": str(rule.id), "execution_id": str(exec_row.id), "status": status, "workflow_run_id": workflow_run_id})
     return events
