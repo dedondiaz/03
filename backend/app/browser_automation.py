@@ -134,7 +134,7 @@ def run_web_automation(args: dict, ctx: dict) -> dict:
     redacted_steps = redact_steps(steps)
     run_row = db.execute(text("""
       INSERT INTO browser_automation_runs (tenant_id, linked_run_id, session_id, status, policy_snapshot_json, steps_redacted_json)
-      VALUES (:tenant_id, :linked_run_id, :session_id, 'RUNNING', :policy::jsonb, :steps::jsonb)
+      VALUES (:tenant_id, :linked_run_id, :session_id, 'RUNNING', CAST(:policy AS jsonb), CAST(:steps AS jsonb))
       RETURNING id
     """), {
         "tenant_id": ctx["tenant_id"],
@@ -192,7 +192,7 @@ def run_web_automation(args: dict, ctx: dict) -> dict:
 
     db.execute(text("""
       UPDATE browser_automation_runs
-      SET status=:status, result_json=:result::jsonb, final_url=:final_url, errors=:errors::jsonb, updated_at=now()
+      SET status=:status, result_json=CAST(:result AS jsonb), final_url=:final_url, errors=CAST(:errors AS jsonb), updated_at=now()
       WHERE id=:id
     """), {
         "id": browser_run_id,

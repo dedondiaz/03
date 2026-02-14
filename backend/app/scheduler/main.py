@@ -25,7 +25,7 @@ def loop(interval_s: int = 30):
         except Exception as exc:
             db.rollback()
             try:
-                db.execute(text("INSERT INTO audit_logs (tenant_id, event_type, payload) VALUES (:tenant_id, :event_type, :payload::jsonb)"), {"tenant_id": "10000000-0000-0000-0000-000000000001", "event_type": "scheduler_tick_failed", "payload": __import__("json").dumps({"error": str(exc)[:200]})})
+                db.execute(text("INSERT INTO audit_logs (tenant_id, event_type, payload) VALUES (:tenant_id, :event_type, CAST(:payload AS jsonb))"), {"tenant_id": "10000000-0000-0000-0000-000000000001", "event_type": "scheduler_tick_failed", "payload": __import__("json").dumps({"error": str(exc)[:200]})})
                 db.commit()
             except Exception:
                 db.rollback()

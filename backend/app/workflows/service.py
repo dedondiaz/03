@@ -88,8 +88,8 @@ class WorkflowService:
                 text(
                     """
                     INSERT INTO workflow_templates (id, name, description, input_schema_json, enabled, version, updated_at)
-                    VALUES (:id, :name, :description, :schema::jsonb, :enabled, :version, now())
-                    ON CONFLICT (id) DO UPDATE SET name=:name, description=:description, input_schema_json=:schema::jsonb, enabled=:enabled, version=:version, updated_at=now()
+                    VALUES (:id, :name, :description, CAST(:schema AS jsonb), :enabled, :version, now())
+                    ON CONFLICT (id) DO UPDATE SET name=:name, description=:description, input_schema_json=CAST(:schema AS jsonb), enabled=:enabled, version=:version, updated_at=now()
                     """
                 ),
                 {
@@ -135,7 +135,7 @@ class WorkflowService:
             text(
                 """
                 INSERT INTO workflow_runs (tenant_id, template_id, input_json, status, linked_run_id, created_by, summary_text, triggered_by_rule_id)
-                VALUES (:tenant_id, :template_id, :input_json::jsonb, 'queued', :linked_run_id, :created_by, NULL, :triggered_by_rule_id)
+                VALUES (:tenant_id, :template_id, CAST(:input_json AS jsonb), 'queued', :linked_run_id, :created_by, NULL, :triggered_by_rule_id)
                 RETURNING id, template_id, input_json, status, linked_run_id, summary_text, created_at, updated_at
                 """
             ),

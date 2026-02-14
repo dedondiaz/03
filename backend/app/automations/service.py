@@ -128,7 +128,7 @@ class AutomationService:
                 tenant_id, created_by, name, template_id, input_json, trigger_type, schedule_cron, timezone,
                 quiet_hours_start, quiet_hours_end, enabled, max_runs_per_day, max_concurrent_runs, next_run_at, updated_at
             ) VALUES (
-                :tenant_id, :created_by, :name, :template_id, :input_json::jsonb, :trigger_type, :schedule_cron, :timezone,
+                :tenant_id, :created_by, :name, :template_id, CAST(:input_json AS jsonb), :trigger_type, :schedule_cron, :timezone,
                 :quiet_hours_start, :quiet_hours_end, :enabled, :max_runs_per_day, :max_concurrent_runs, :next_run_at, now()
             ) RETURNING id
         """), {
@@ -160,7 +160,7 @@ class AutomationService:
             UPDATE automation_rules SET
               name=:name,
               template_id=:template_id,
-              input_json=:input_json::jsonb,
+              input_json=CAST(:input_json AS jsonb),
               trigger_type=:trigger_type,
               schedule_cron=:schedule_cron,
               timezone=:timezone,
@@ -299,7 +299,7 @@ def run_scheduler_tick(db, now_dt: datetime | None = None) -> list[dict]:
             "finished_at": now_utc,
             "reason": reason,
         }).fetchone()
-        db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, :event_type, :payload::jsonb)"), {
+        db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, :event_type, CAST(:payload AS jsonb))"), {
             "tenant_id": tenant_id,
             "run_id": workflow_run_id,
             "event_type": "automation_execution",

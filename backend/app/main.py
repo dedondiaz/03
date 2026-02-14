@@ -545,7 +545,7 @@ def get_microsoft_status(session=Depends(require_session)):
 def do_microsoft_disconnect(session=Depends(require_session)):
     out = microsoft_disconnect(session["db"])
     mark_connected(session["db"], session["tenant_id"], "microsoft", False)
-    session["db"].execute(text("INSERT INTO audit_logs (tenant_id, event_type, payload) VALUES (:tenant_id, 'microsoft_disconnected', :payload::jsonb)"), {"tenant_id": session["tenant_id"], "payload": json.dumps({"connected": False})})
+    session["db"].execute(text("INSERT INTO audit_logs (tenant_id, event_type, payload) VALUES (:tenant_id, 'microsoft_disconnected', CAST(:payload AS jsonb))"), {"tenant_id": session["tenant_id"], "payload": json.dumps({"connected": False})})
     session["db"].commit()
     return out
 
@@ -611,7 +611,7 @@ def create_workflow_run(body: dict, session=Depends(require_session)):
         if "quota_exceeded" in detail:
             raise HTTPException(status_code=429, detail=detail)
         raise HTTPException(status_code=400, detail=detail)
-    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'workflow_run_created', :payload::jsonb)"), {
+    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'workflow_run_created', CAST(:payload AS jsonb))"), {
         "tenant_id": session["tenant_id"],
         "run_id": wf["linked_run_id"],
         "payload": json.dumps({"workflow_run_id": wf["id"], "template_id": wf["template_id"]}),
@@ -726,8 +726,8 @@ def audit_list(from_date: str | None = Query(default=None, alias="from"), to_dat
       FROM tool_invocations
       WHERE (:tool_name IS NULL OR tool_name=:tool_name)
         AND (:status IS NULL OR status=:status)
-        AND (:from_date IS NULL OR started_at >= :from_date::date)
-        AND (:to_date IS NULL OR started_at < (:to_date::date + interval '1 day'))
+        AND (:from_date IS NULL OR started_at >= CAST(:from_date AS date))
+        AND (:to_date IS NULL OR started_at < (CAST(:to_date AS date) + interval '1 day'))
       ORDER BY started_at DESC
       LIMIT :limit
     """), {"tool_name": tool_name, "status": status, "from_date": from_date, "to_date": to_date, "limit": int(limit)}).fetchall()
@@ -754,7 +754,7 @@ def tenant_usage_summary(days: int = Query(default=7, ge=1, le=30), session=Depe
     rows = db.execute(text("""
       SELECT day, api_requests_count, tool_calls_count, llm_tokens_count, workflow_runs_count, automation_runs_count, web_automation_runs_count, web_automation_runtime_seconds
       FROM tenant_usage_daily
-      WHERE day >= current_date - (:days::int - 1)
+      WHERE day >= current_date - (CAST(:days AS int) - 1)
       ORDER BY day ASC
     """), {"days": int(days)}).fetchall()
     daily = [{"day": str(r.day), "api_requests_count": int(r.api_requests_count), "tool_calls_count": int(r.tool_calls_count), "llm_tokens_count": int(r.llm_tokens_count), "workflow_runs_count": int(r.workflow_runs_count), "automation_runs_count": int(r.automation_runs_count), "web_automation_runs_count": int(r.web_automation_runs_count), "web_automation_runtime_seconds": int(r.web_automation_runtime_seconds)} for r in rows]
@@ -854,14 +854,14 @@ def run_task(task_id: str, body: RunTaskRequest, session=Depends(require_session
     needs_approval = task.risk_level == "HIGH"
     if needs_approval and not body.approve:
         run = db.execute(text("INSERT INTO task_runs (tenant_id, task_id, status, approval_required, created_by) VALUES (:tenant_id, :task_id, 'PENDING_APPROVAL', TRUE, :created_by) RETURNING id"), {"tenant_id": session["tenant_id"], "task_id": task_id, "created_by": session["user_id"]}).fetchone()
-        db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'approval_required', :payload::jsonb)"), {"tenant_id": session["tenant_id"], "run_id": str(run.id), "payload": json.dumps({"risk": "HIGH"})})
+        db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'approval_required', CAST(:payload AS jsonb))"), {"tenant_id": session["tenant_id"], "run_id": str(run.id), "payload": json.dumps({"risk": "HIGH"})})
         db.commit()
         return {"run_id": str(run.id), "status": "PENDING_APPROVAL"}
 
     run = db.execute(text("INSERT INTO task_runs (tenant_id, task_id, status, approval_required, created_by) VALUES (:tenant_id, :task_id, 'QUEUED', :approval_required, :created_by) RETURNING id"), {"tenant_id": session["tenant_id"], "task_id": task_id, "approval_required": needs_approval, "created_by": session["user_id"]}).fetchone()
     if needs_approval:
         db.execute(text("INSERT INTO approvals (tenant_id, run_id, approved_by, approved) VALUES (:tenant_id, :run_id, :approved_by, TRUE)"), {"tenant_id": session["tenant_id"], "run_id": str(run.id), "approved_by": session["user_id"]})
-    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'run_queued', :payload::jsonb)"), {"tenant_id": session["tenant_id"], "run_id": str(run.id), "payload": json.dumps({"status": "QUEUED"})})
+    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, 'run_queued', CAST(:payload AS jsonb))"), {"tenant_id": session["tenant_id"], "run_id": str(run.id), "payload": json.dumps({"status": "QUEUED"})})
     db.commit()
     enqueue_run_job(str(run.id), session["tenant_id"], session["user_id"], job_id=f"tenant:{session['tenant_id']}:run:{run.id}")
     return {"run_id": str(run.id), "status": "QUEUED"}
@@ -880,7 +880,7 @@ def cancel_run(run_id: str, session=Depends(require_session)):
         return {"run_id": run_id, "status": status}
     new_status = "CANCELLED" if status in {"QUEUED", "PENDING_APPROVAL"} else "CANCELLING"
     db.execute(text("UPDATE task_runs SET cancel_requested=TRUE, status=:status WHERE id=:id"), {"id": run_id, "status": new_status})
-    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id,:run_id,'run_cancel_requested',:payload::jsonb)"), {"tenant_id": session["tenant_id"], "run_id": run_id, "payload": json.dumps({"status": new_status})})
+    db.execute(text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id,:run_id,'run_cancel_requested',CAST(:payload AS jsonb))"), {"tenant_id": session["tenant_id"], "run_id": run_id, "payload": json.dumps({"status": new_status})})
     db.commit()
     return {"run_id": run_id, "status": new_status}
 

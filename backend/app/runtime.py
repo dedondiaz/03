@@ -20,7 +20,7 @@ TOOL_TIMEOUT_S = int(os.getenv("TOOL_CALL_TIMEOUT_S", "8"))
 
 def _log(db, tenant_id: str, run_id: str, event_type: str, payload: dict):
     db.execute(
-        text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, :event_type, :payload::jsonb)"),
+        text("INSERT INTO audit_logs (tenant_id, run_id, event_type, payload) VALUES (:tenant_id, :run_id, :event_type, CAST(:payload AS jsonb))"),
         {"tenant_id": tenant_id, "run_id": run_id, "event_type": event_type, "payload": json.dumps(payload)},
     )
 
@@ -67,7 +67,7 @@ def execute_run(db, run_id: str, tenant_id: str, user_id: str):
         return
     plan = llm.planner({"id": str(task.id), "title": task.title, "description": task.description, "risk_level": task.risk_level}, registry.llm_tools())
     meter_llm_tokens(db, tenant_id, planner_est)
-    db.execute(text("UPDATE task_runs SET plan_json=:plan::jsonb, status='RUNNING' WHERE id=:id"), {"plan": json.dumps(plan), "id": run_id})
+    db.execute(text("UPDATE task_runs SET plan_json=CAST(:plan AS jsonb), status='RUNNING' WHERE id=:id"), {"plan": json.dumps(plan), "id": run_id})
     _log(db, tenant_id, run_id, "planner", plan)
 
     outputs = []
@@ -128,7 +128,7 @@ def execute_run(db, run_id: str, tenant_id: str, user_id: str):
             text(
                 """
                 INSERT INTO tool_invocations (tenant_id, run_id, tool_name, args_json, status, started_at, idempotency_key)
-                VALUES (:tenant_id, :run_id, :tool_name, :args_json::jsonb, 'RUNNING', :started_at, :idempotency_key)
+                VALUES (:tenant_id, :run_id, :tool_name, CAST(:args_json AS jsonb), 'RUNNING', :started_at, :idempotency_key)
                 RETURNING id
                 """
             ),
@@ -168,7 +168,7 @@ def execute_run(db, run_id: str, tenant_id: str, user_id: str):
                     ext_type, ext_id = 'jira_issue', str(result.get('issue_key'))
             persisted_result = tool.redact_result(result) if (tool.redact_result and isinstance(result, dict)) else result
             db.execute(
-                text("UPDATE tool_invocations SET status='SUCCESS', result_json=:result::jsonb, external_ref_type=:ext_type, external_ref_id=:ext_id, finished_at=now() WHERE id=:id"),
+                text("UPDATE tool_invocations SET status='SUCCESS', result_json=CAST(:result AS jsonb), external_ref_type=:ext_type, external_ref_id=:ext_id, finished_at=now() WHERE id=:id"),
                 {"id": str(inv.id), "result": json.dumps(persisted_result), "ext_type": ext_type, "ext_id": ext_id},
             )
             _log(db, tenant_id, run_id, "tool_output", {"tool": tool.name, "result": persisted_result})
