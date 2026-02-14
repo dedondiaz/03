@@ -29,7 +29,7 @@ from app.main import app
 from app.db import engine, init_db
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def setup_db():
     init_db()
     with engine.begin() as conn:
